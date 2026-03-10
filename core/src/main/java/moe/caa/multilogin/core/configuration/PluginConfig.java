@@ -233,10 +233,11 @@ public class PluginConfig {
                 BaseYggdrasilServiceConfig.HttpRequestMethod method = customNode.node("method").get(BaseYggdrasilServiceConfig.HttpRequestMethod.class, BaseYggdrasilServiceConfig.HttpRequestMethod.GET);
                 String trackIpContent = customNode.node("trackIpContent").getString();
                 String postContent = customNode.node("postContent").getString();
+                String profileLookupUrl = customNode.node("profileLookupUrl").getString();
 
                 return new CustomYggdrasilServiceConfig(id, name, initUUID, initNameFormat, whitelist,
                         skinRestorer, trackIp, timeout, retry, retryDelay,
-                        authProxy, url, postContent, trackIpContent, method);
+                        authProxy, url, postContent, trackIpContent, method, profileLookupUrl);
             }
         }
 

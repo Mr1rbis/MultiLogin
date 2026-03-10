@@ -1,5 +1,6 @@
 package moe.caa.multilogin.core.auth;
 
+import com.mysql.cj.x.protobuf.MysqlxDatatypes;
 import lombok.Getter;
 import moe.caa.multilogin.api.internal.auth.AuthAPI;
 import moe.caa.multilogin.api.profile.GameProfile;

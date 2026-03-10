@@ -23,8 +23,14 @@ public class OfficialYggdrasilServiceConfig extends BaseYggdrasilServiceConfig {
 
     @Override
     protected String getAuthURL() {
-	    String baseUrl = customSessionServer;
-	    return baseUrl.concat("session/minecraft/hasJoined?username={0}&serverId={1}{2}");
+        String baseUrl = customSessionServer;
+        return baseUrl.concat("session/minecraft/hasJoined?username={0}&serverId={1}{2}");
+    }
+
+    @Override
+    public String getProfileLookupUrl(String username) {
+        // Mojang: https://api.mojang.com/users/profiles/minecraft/{username}
+        return "https://api.mojang.com/users/profiles/minecraft/" + username;
     }
 
     @Override

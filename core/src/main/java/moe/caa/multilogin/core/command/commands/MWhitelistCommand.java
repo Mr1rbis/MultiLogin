@@ -3,13 +3,18 @@ package moe.caa.multilogin.core.command.commands;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import lombok.SneakyThrows;
+import moe.caa.multilogin.api.internal.logger.LoggerProvider;
 import moe.caa.multilogin.api.internal.plugin.IPlayer;
 import moe.caa.multilogin.api.internal.plugin.ISender;
+import moe.caa.multilogin.core.auth.service.yggdrasil.ProfileLookupService;
 import moe.caa.multilogin.api.internal.util.Pair;
 import moe.caa.multilogin.core.command.CommandHandler;
 import moe.caa.multilogin.core.command.Permissions;
 import moe.caa.multilogin.core.command.argument.OnlineArgumentType;
+import moe.caa.multilogin.core.command.argument.ServiceIdArgumentType;
 import moe.caa.multilogin.core.command.argument.StringArgumentType;
+import moe.caa.multilogin.core.configuration.service.BaseServiceConfig;
+import moe.caa.multilogin.core.configuration.service.yggdrasil.BaseYggdrasilServiceConfig;
 
 import java.util.List;
 import java.util.Locale;
@@ -45,7 +50,11 @@ public class MWhitelistCommand {
                                 .requires(sender -> sender.hasPermission(Permissions.COMMAND_MULTI_LOGIN_WHITELIST_SPECIFIC_ADD))
                                 .then(handler.argument("online", OnlineArgumentType.online())
                                         .executes(this::executeAdd)
-
+                                )
+                                .then(handler.argument("service", ServiceIdArgumentType.service())
+                                        .then(handler.argument("username", StringArgumentType.string())
+                                                .executes(this::executeSpecificAddByName)
+                                        )
                                 )
                         )
                         .then(handler.literal("remove")
@@ -118,6 +127,100 @@ public class MWhitelistCommand {
         return 0;
     }
 
+    // /MultiLogin whitelist specific add <service_id> <username>
+    // Работает даже если игрок ещё ни разу не заходил — делает lookup по API
+    @SneakyThrows
+    private int executeSpecificAddByName(CommandContext<ISender> context) {
+        BaseServiceConfig serviceConfig = ServiceIdArgumentType.getService(context, "service");
+        String username = StringArgumentType.getString(context, "username");
+
+        if (!(serviceConfig instanceof BaseYggdrasilServiceConfig)) {
+            context.getSource().sendMessagePL("§cДанный сервис не поддерживает lookup по имени.");
+            return 0;
+        }
+        BaseYggdrasilServiceConfig yggConfig = (BaseYggdrasilServiceConfig) serviceConfig;
+
+        // Сначала проверяем — может уже есть в БД по нику
+        UUID existingUUID = CommandHandler.getCore().getSqlManager().getUserDataTable()
+                .getOnlineUUID(username, serviceConfig.getId());
+
+        if (existingUUID != null) {
+            // Игрок уже есть в БД
+            if (CommandHandler.getCore().getSqlManager().getUserDataTable()
+                    .hasWhitelist(existingUUID, serviceConfig.getId())) {
+                context.getSource().sendMessagePL(CommandHandler.getCore().getLanguageHandler().getMessage(
+                        "command_message_whitelist_permanent_add_repeat",
+                        new Pair<>("online_uuid", existingUUID),
+                        new Pair<>("online_name", username),
+                        new Pair<>("service_name", serviceConfig.getName()),
+                        new Pair<>("service_id", serviceConfig.getId())
+                ));
+                return 0;
+            }
+            CommandHandler.getCore().getSqlManager().getUserDataTable()
+                    .setWhitelist(existingUUID, serviceConfig.getId(), true);
+            context.getSource().sendMessagePL(CommandHandler.getCore().getLanguageHandler().getMessage(
+                    "command_message_whitelist_permanent_add",
+                    new Pair<>("online_uuid", existingUUID),
+                    new Pair<>("online_name", username),
+                    new Pair<>("service_name", serviceConfig.getName()),
+                    new Pair<>("service_id", serviceConfig.getId())
+            ));
+            return 0;
+        }
+
+        // Игрока нет в БД — делаем lookup по API
+        String lookupUrl = yggConfig.getProfileLookupUrl(username);
+        if (lookupUrl == null || lookupUrl.isEmpty()) {
+            context.getSource().sendMessagePL(
+                    "§cСервис §e" + serviceConfig.getName() + "§c не поддерживает lookup. " +
+                    "Укажите profileLookupUrl в конфиге сервиса."
+            );
+            return 0;
+        }
+
+        try {
+            java.util.List<ProfileLookupService.LookupResult> results =
+                    CommandHandler.getCore().getProfileLookupService()
+                            .lookupByUsernameAndService(username, yggConfig);
+
+            if (results.isEmpty()) {
+                context.getSource().sendMessagePL(
+                        "§cИгрок §e" + username + "§c не найден в сервисе §e" + serviceConfig.getName() + "§c."
+                );
+                return 0;
+            }
+
+            ProfileLookupService.LookupResult result = results.get(0);
+            UUID onlineUUID = result.profile.getId();
+
+            if (!CommandHandler.getCore().getSqlManager().getUserDataTable()
+                    .dataExists(onlineUUID, serviceConfig.getId())) {
+                CommandHandler.getCore().getSqlManager().getUserDataTable()
+                        .insertNewData(onlineUUID, serviceConfig.getId(), result.profile.getName(), null);
+            }
+            CommandHandler.getCore().getSqlManager().getUserDataTable()
+                    .setWhitelist(onlineUUID, serviceConfig.getId(), true);
+
+            LoggerProvider.getLogger().info(String.format(
+                    "Whitelist via specific lookup: username=%s uuid=%s service=%d",
+                    result.profile.getName(), onlineUUID, serviceConfig.getId()
+            ));
+
+            context.getSource().sendMessagePL(CommandHandler.getCore().getLanguageHandler().getMessage(
+                    "command_message_whitelist_permanent_add",
+                    new Pair<>("online_uuid", onlineUUID),
+                    new Pair<>("online_name", result.profile.getName()),
+                    new Pair<>("service_name", serviceConfig.getName()),
+                    new Pair<>("service_id", serviceConfig.getId())
+            ));
+        } catch (Exception e) {
+            LoggerProvider.getLogger().error("Lookup error for " + username + " on service " + serviceConfig.getName(), e);
+            context.getSource().sendMessagePL("§cОшибка при поиске игрока: " + e.getMessage());
+        }
+        return 0;
+    }
+
     // /MultiLogin whitelist remove <name>
     @SneakyThrows
     private int executeRemoveUsername(CommandContext<ISender> context) {
@@ -156,17 +259,57 @@ public class MWhitelistCommand {
     @SneakyThrows
     private int executeAddUsername(CommandContext<ISender> context) {
         String username = StringArgumentType.getString(context, "username").toLowerCase(Locale.ROOT);
-        boolean have = false;
+
+        // 1. Проверяем, есть ли уже в БД (игрок заходил раньше)
         UUID inGameUUID = CommandHandler.getCore().getSqlManager().getInGameProfileTable().getInGameUUIDIgnoreCase(username);
-        if (inGameUUID != null) {
-            have = CommandHandler.getCore().getSqlManager().getUserDataTable().hasWhitelist(inGameUUID);
-        }
-        if (have) {
+        if (inGameUUID != null && CommandHandler.getCore().getSqlManager().getUserDataTable().hasWhitelist(inGameUUID)) {
             context.getSource().sendMessagePL(CommandHandler.getCore().getLanguageHandler().getMessage("command_message_whitelist_add_repeat",
                     new Pair<>("name", username)
             ));
             return 0;
         }
+
+        // 2. Если игрок уже есть в кэше ожидания — не дублируем
+        if (CommandHandler.getCore().getCacheWhitelistHandler().getCachedWhitelist().contains(username)) {
+            context.getSource().sendMessagePL(CommandHandler.getCore().getLanguageHandler().getMessage("command_message_whitelist_add_repeat",
+                    new Pair<>("name", username)
+            ));
+            return 0;
+        }
+
+        // 3. Пробуем найти игрока через API по нику (lookup)
+        //    Это позволяет добавить в вайтлист тех, кто ещё ни разу не заходил на сервер
+        int directAdded = 0;
+        try {
+            java.util.List<ProfileLookupService.LookupResult> results =
+                    CommandHandler.getCore().getProfileLookupService().lookupByUsername(username);
+            for (ProfileLookupService.LookupResult result : results) {
+                java.util.UUID onlineUUID = result.profile.getId();
+                int serviceId = result.serviceConfig.getId();
+                if (!CommandHandler.getCore().getSqlManager().getUserDataTable().dataExists(onlineUUID, serviceId)) {
+                    CommandHandler.getCore().getSqlManager().getUserDataTable()
+                            .insertNewData(onlineUUID, serviceId, result.profile.getName(), null);
+                }
+                CommandHandler.getCore().getSqlManager().getUserDataTable()
+                        .setWhitelist(onlineUUID, serviceId, true);
+                directAdded++;
+                LoggerProvider.getLogger().info(String.format(
+                        "Whitelist via lookup: username=%s uuid=%s service=%d",
+                        result.profile.getName(), onlineUUID, serviceId));
+            }
+        } catch (Exception e) {
+            LoggerProvider.getLogger().debug("Profile lookup error for " + username, e);
+        }
+
+        if (directAdded > 0) {
+            // Нашли и записали напрямую в БД — кэш не нужен
+            context.getSource().sendMessagePL(CommandHandler.getCore().getLanguageHandler().getMessage("command_message_whitelist_add",
+                    new Pair<>("name", username)
+            ));
+            return 0;
+        }
+
+        // 4. Lookup ничего не нашёл — кладём в RAM-кэш, применится при первом входе
         if (!CommandHandler.getCore().getCacheWhitelistHandler().getCachedWhitelist().add(username)) {
             context.getSource().sendMessagePL(CommandHandler.getCore().getLanguageHandler().getMessage("command_message_whitelist_add_repeat",
                     new Pair<>("name", username)

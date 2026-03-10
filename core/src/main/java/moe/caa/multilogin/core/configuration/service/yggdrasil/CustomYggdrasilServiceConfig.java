@@ -14,13 +14,20 @@ public class CustomYggdrasilServiceConfig extends BaseYggdrasilServiceConfig {
     private final String postContent;
     private final String trackIpContent;
     private final HttpRequestMethod method;
+    // nullable — если не задан, lookup не поддерживается
+    private final String profileLookupUrl;
 
     public CustomYggdrasilServiceConfig(int id, String name, InitUUID initUUID, String initNameFormat, boolean whitelist, SkinRestorerConfig skinRestorer, boolean trackIp, int timeout, int retry, long retryDelay, ProxyConfig authProxy, String url, String postContent, String trackIpContent, HttpRequestMethod method) throws ConfException {
+        this(id, name, initUUID, initNameFormat, whitelist, skinRestorer, trackIp, timeout, retry, retryDelay, authProxy, url, postContent, trackIpContent, method, null);
+    }
+
+    public CustomYggdrasilServiceConfig(int id, String name, InitUUID initUUID, String initNameFormat, boolean whitelist, SkinRestorerConfig skinRestorer, boolean trackIp, int timeout, int retry, long retryDelay, ProxyConfig authProxy, String url, String postContent, String trackIpContent, HttpRequestMethod method, String profileLookupUrl) throws ConfException {
         super(id, name, initUUID, initNameFormat, whitelist, skinRestorer, trackIp, timeout, retry, retryDelay, authProxy);
         this.url = url;
         this.postContent = postContent;
         this.trackIpContent = trackIpContent;
         this.method = method;
+        this.profileLookupUrl = profileLookupUrl;
     }
 
 
@@ -42,6 +49,12 @@ public class CustomYggdrasilServiceConfig extends BaseYggdrasilServiceConfig {
     @Override
     public HttpRequestMethod getHttpRequestMethod() {
         return method;
+    }
+
+    @Override
+    public String getProfileLookupUrl(String username) {
+        if (profileLookupUrl == null || profileLookupUrl.isEmpty()) return null;
+        return profileLookupUrl.replace("{username}", username);
     }
 
     @NotNull

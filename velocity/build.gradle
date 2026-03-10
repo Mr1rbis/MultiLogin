@@ -30,6 +30,7 @@ dependencies {
 
 
 shadowJar {
+    dependsOn processResources
     archiveBaseName.set('MultiLogin-Velocity')
 
     if (System.getProperty("env", "AUTO") == "final") {
@@ -39,6 +40,7 @@ shadowJar {
         archiveVersion.set(ver)
     }
     archiveClassifier.set("")
+    from(sourceSets.main.output)
     from {
         project(':core').tasks.shadowJar.archiveFile
     }

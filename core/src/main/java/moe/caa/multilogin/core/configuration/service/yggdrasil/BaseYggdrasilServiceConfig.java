@@ -86,6 +86,14 @@ public abstract class BaseYggdrasilServiceConfig extends BaseServiceConfig {
      */
     public abstract HttpRequestMethod getHttpRequestMethod();
 
+    /**
+     * 根据用户名查询档案的 URL，{username} 为占位符。
+     * 返回 null 表示此服务不支持按名查询。
+     */
+    public String getProfileLookupUrl(String username) {
+        return null;
+    }
+
     public enum HttpRequestMethod {
         GET, POST
     }

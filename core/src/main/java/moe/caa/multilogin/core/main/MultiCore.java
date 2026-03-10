@@ -15,6 +15,7 @@ import moe.caa.multilogin.api.internal.plugin.IPlugin;
 import moe.caa.multilogin.api.service.IService;
 import moe.caa.multilogin.core.auth.AuthHandler;
 import moe.caa.multilogin.core.auth.service.floodgate.FloodgateAuthenticationService;
+import moe.caa.multilogin.core.auth.service.yggdrasil.ProfileLookupService;
 import moe.caa.multilogin.core.auth.service.yggdrasil.serialize.GameProfileSerializer;
 import moe.caa.multilogin.core.auth.service.yggdrasil.serialize.PropertySerializer;
 import moe.caa.multilogin.core.command.CommandHandler;
@@ -66,6 +67,8 @@ public class MultiCore implements MultiCoreAPI, MultiLoginAPI {
     @Getter
     private final Gson gson;
     @Getter
+    private final ProfileLookupService profileLookupService;
+    @Getter
     private SemVersion semVersion;
     @Getter
     private boolean floodgateSupported = false;
@@ -86,6 +89,7 @@ public class MultiCore implements MultiCoreAPI, MultiLoginAPI {
         this.commandHandler = new CommandHandler(this);
         this.playerHandler = new PlayerHandler(this);
         this.cacheWhitelistHandler = new CacheWhitelistHandler();
+        this.profileLookupService = new ProfileLookupService(this);
         this.gson = new GsonBuilder()
                 .setPrettyPrinting()
                 .registerTypeAdapter(GameProfile.class, new GameProfileSerializer())

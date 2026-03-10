@@ -13,3 +13,7 @@ yggdrasilAuth:
     method: 'GET'
     url: 'https://authserver.ely.by/session/hasJoined?username={0}&serverId={1}{2}'
     trackIpContent: '&ip={0}'
+    # URL для поиска профиля по нику (без входа на сервер).
+    # Используется командой /whitelist add <name> для игроков, ещё не заходивших на сервер.
+    # {username} будет заменён на ник игрока.
+    profileLookupUrl: 'https://authserver.ely.by/api/profiles/minecraft/{username}'
