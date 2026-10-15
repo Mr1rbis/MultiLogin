@@ -29,7 +29,7 @@ allowing them to play together on the same server.
 
 ## Deploy
 
-The minimum requirement is' Java 17 ',
+The minimum requirement is `Java 25` and `Velocity 4.x`,
 without the need to install' authlib injector ',
 without any pre plugins,
 and without the need to add or change' JVM 'parameters

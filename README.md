@@ -30,7 +30,7 @@ MultiLogin 是一款主要为 Minecraft 代理端设计的插件，旨在实现�
 
 ## 安装
 
-最低需要 `Java 21`， 不需要安装 `authlib-injector` ，没有任何前置插件，也不需要添加和更改 `JVM` 参数
+最低需要 `Java 25` 与 `Velocity 4.x`， 不需要安装 `authlib-injector` ，没有任何前置插件，也不需要添加和更改 `JVM` 参数
 
 ~~把大象装进冰箱需要几步？~~
 
